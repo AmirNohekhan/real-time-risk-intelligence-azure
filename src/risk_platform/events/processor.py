@@ -19,21 +19,26 @@ class EventProcessor:
         )
 
     def process(self, event: Event) -> Prediction | None:
-        if not self.idempotency.claim(str(event.event_id)):
+        event_id = str(event.event_id)
+        if not self.idempotency.claim(event_id):
             return None
-        prediction = self.scorer.score(event)
-        self.predictions.write(prediction)
-        if prediction.recommended_action in {Action.REVIEW, Action.BLOCK}:
-            self.cases.publish(
-                InvestigationCase(
-                    event_id=event.event_id,
-                    correlation_id=event.correlation_id,
-                    priority="critical"
-                    if prediction.recommended_action == Action.BLOCK
-                    else "standard",
-                    reason_codes=prediction.reason_codes,
-                    risk_score=prediction.final_risk_score,
-                    payload={"model_version": prediction.model_version},
+        try:
+            prediction = self.scorer.score(event)
+            self.predictions.write(prediction)
+            if prediction.recommended_action in {Action.REVIEW, Action.BLOCK}:
+                self.cases.publish(
+                    InvestigationCase(
+                        event_id=event.event_id,
+                        correlation_id=event.correlation_id,
+                        priority="critical"
+                        if prediction.recommended_action == Action.BLOCK
+                        else "standard",
+                        reason_codes=prediction.reason_codes,
+                        risk_score=prediction.final_risk_score,
+                        payload={"model_version": prediction.model_version},
+                    )
                 )
-            )
-        return prediction
+            return prediction
+        except Exception:
+            self.idempotency.release(event_id)
+            raise
