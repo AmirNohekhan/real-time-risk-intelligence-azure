@@ -8,6 +8,14 @@ from risk_platform.features import FEATURE_NAMES, transform_frame
 
 
 def population_stability_index(reference: np.ndarray, current: np.ndarray, bins: int = 10) -> float:
+    reference = np.asarray(reference, dtype=float)
+    current = np.asarray(current, dtype=float)
+    if bins < 2:
+        raise ValueError("bins must be at least 2")
+    if reference.size == 0 or current.size == 0:
+        raise ValueError("PSI requires non-empty reference and current samples")
+    if not np.isfinite(reference).all() or not np.isfinite(current).all():
+        raise ValueError("PSI samples must contain only finite values")
     edges = np.unique(np.quantile(reference, np.linspace(0, 1, bins + 1)))
     if len(edges) < 3:
         return 0.0
@@ -19,6 +27,8 @@ def population_stability_index(reference: np.ndarray, current: np.ndarray, bins:
 
 
 def drift_report(reference: pd.DataFrame, current: pd.DataFrame) -> dict[str, object]:
+    if reference.empty or current.empty:
+        raise ValueError("drift report requires non-empty reference and current windows")
     a, b = transform_frame(reference), transform_frame(current)
     feature_psi = {
         name: population_stability_index(a[name].to_numpy(), b[name].to_numpy())
