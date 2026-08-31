@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from risk_platform.features import FEATURE_NAMES, transform_frame
+from risk_platform.files import atomic_write_text
 
 
 def population_stability_index(reference: np.ndarray, current: np.ndarray, bins: int = 10) -> float:
@@ -43,5 +44,4 @@ def drift_report(reference: pd.DataFrame, current: pd.DataFrame) -> dict[str, ob
 
 
 def write_report(report: dict[str, object], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(report, indent=2))

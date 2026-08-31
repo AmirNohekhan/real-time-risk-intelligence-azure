@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
+from risk_platform.files import atomic_write
+
 
 @dataclass
 class ModelBundle:
@@ -36,8 +38,7 @@ class ModelBundle:
         return np.clip(scaled, 0, 1)
 
     def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self, path)
+        atomic_write(path, lambda temporary: joblib.dump(self, temporary))
 
     @classmethod
     def load(cls, path: Path) -> "ModelBundle":

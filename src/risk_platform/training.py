@@ -16,6 +16,7 @@ from sklearn.metrics import (
 )
 
 from risk_platform.features import transform_frame
+from risk_platform.files import atomic_write_text
 from risk_platform.models.bundle import ModelBundle
 
 
@@ -104,5 +105,5 @@ def train(
     )
     bundle.save(output)
     metrics_path = output.with_suffix(".metrics.json")
-    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    atomic_write_text(metrics_path, json.dumps(metrics, indent=2))
     return bundle
