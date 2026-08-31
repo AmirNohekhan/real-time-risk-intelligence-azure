@@ -19,6 +19,24 @@ from risk_platform.features import transform_frame
 from risk_platform.models.bundle import ModelBundle
 
 
+def _validate_training_splits(
+    train_df: pd.DataFrame, validation_df: pd.DataFrame, test_df: pd.DataFrame
+) -> None:
+    for name, split in (
+        ("training", train_df),
+        ("validation", validation_df),
+        ("test", test_df),
+    ):
+        if split.empty:
+            raise ValueError(f"{name} split is empty; provide more chronologically ordered rows")
+        labels = set(split["label"].dropna().unique())
+        if labels != {0, 1}:
+            raise ValueError(f"{name} split must contain both binary label classes")
+    counts = train_df["label"].value_counts()
+    if int(counts.min()) < 3:
+        raise ValueError("training split needs at least 3 rows from each class for calibration")
+
+
 def temporal_split(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     ordered = frame.sort_values("event_timestamp").reset_index(drop=True)
     a, b = int(len(ordered) * 0.7), int(len(ordered) * 0.85)
@@ -37,7 +55,14 @@ def _cost_threshold(y: np.ndarray, p: np.ndarray, fn_cost: float, fp_cost: float
 def train(
     frame: pd.DataFrame, output: Path, fn_cost: float = 20, fp_cost: float = 1
 ) -> ModelBundle:
+    required = {"event_timestamp", "label"}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"training data is missing required columns: {sorted(missing)}")
+    if fn_cost <= 0 or fp_cost <= 0:
+        raise ValueError("training costs must be positive")
     train_df, validation_df, test_df = temporal_split(frame)
+    _validate_training_splits(train_df, validation_df, test_df)
     x_train, x_val, x_test = map(transform_frame, (train_df, validation_df, test_df))
     y_train = train_df["label"].to_numpy()
     y_val = validation_df["label"].to_numpy()
