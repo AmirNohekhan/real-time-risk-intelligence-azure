@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
+from risk_platform.files import atomic_write
+
 
 @dataclass
 class ModelBundle:
@@ -18,16 +20,25 @@ class ModelBundle:
     metrics: dict[str, float]
 
     def predict_supervised(self, features: pd.DataFrame) -> np.ndarray:
-        return np.asarray(self.classifier.predict_proba(features)[:, 1], dtype=float)
+        probabilities = np.asarray(self.classifier.predict_proba(features), dtype=float)
+        if probabilities.ndim != 2 or probabilities.shape != (len(features), 2):
+            raise ValueError("classifier must return one two-class probability row per input")
+        positive = probabilities[:, 1]
+        if not np.isfinite(positive).all() or ((positive < 0) | (positive > 1)).any():
+            raise ValueError("classifier returned invalid probabilities")
+        return positive
 
     def predict_anomaly(self, features: pd.DataFrame) -> np.ndarray:
         raw = -np.asarray(self.anomaly_detector.score_samples(features), dtype=float)
+        if raw.shape != (len(features),) or not np.isfinite(raw).all():
+            raise ValueError("anomaly detector must return one finite score per input")
+        if not np.isfinite([self.anomaly_low, self.anomaly_high]).all():
+            raise ValueError("anomaly calibration bounds must be finite")
         scaled = (raw - self.anomaly_low) / max(self.anomaly_high - self.anomaly_low, 1e-9)
         return np.clip(scaled, 0, 1)
 
     def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self, path)
+        atomic_write(path, lambda temporary: joblib.dump(self, temporary))
 
     @classmethod
     def load(cls, path: Path) -> "ModelBundle":

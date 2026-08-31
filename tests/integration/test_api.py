@@ -8,6 +8,20 @@ from risk_platform.inference.service import RiskScorer
 from risk_platform.training import train
 
 
+def test_health_endpoints_distinguish_liveness_and_readiness() -> None:
+    if hasattr(app.state, "scorer"):
+        del app.state.scorer
+    client = TestClient(app)
+
+    live = client.get("/health/live")
+    ready = client.get("/health/ready")
+
+    assert live.status_code == 200
+    assert live.json() == {"status": "alive"}
+    assert ready.status_code == 503
+    assert ready.json() == {"status": "not_ready"}
+
+
 def test_end_to_end_scoring_contract(tmp_path: Path) -> None:
     app.state.scorer = RiskScorer(train(generate_dataset(700), tmp_path / "model.joblib"))
     payload = {
@@ -26,6 +40,7 @@ def test_end_to_end_scoring_contract(tmp_path: Path) -> None:
     }
     with TestClient(app) as client:
         app.state.scorer = RiskScorer(train(generate_dataset(700), tmp_path / "model2.joblib"))
+        assert client.get("/health/ready").json() == {"status": "ready"}
         response = client.post("/v1/score", json=payload)
     assert response.status_code == 200
     body = response.json()

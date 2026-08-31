@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import cast
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response, status
 
 from risk_platform.config import Settings
 from risk_platform.domain import Event, Prediction
@@ -21,9 +21,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Real-Time Risk Intelligence API", version="0.1.0", lifespan=lifespan)
 
 
-@app.get("/health")
-def health(request: Request) -> dict[str, str]:
-    return {"status": "healthy" if hasattr(request.app.state, "scorer") else "not_ready"}
+@app.get("/health/live")
+def liveness() -> dict[str, str]:
+    return {"status": "alive"}
+
+
+@app.get("/health", include_in_schema=False)
+@app.get("/health/ready")
+def readiness(request: Request, response: Response) -> dict[str, str]:
+    if not hasattr(request.app.state, "scorer"):
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "not_ready"}
+    return {"status": "ready"}
 
 
 @app.post("/v1/score", response_model=Prediction)

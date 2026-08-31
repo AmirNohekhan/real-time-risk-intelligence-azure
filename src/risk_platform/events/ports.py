@@ -7,6 +7,8 @@ from risk_platform.domain import InvestigationCase, Prediction
 class IdempotencyStore(Protocol):
     def claim(self, event_id: str) -> bool: ...
 
+    def release(self, event_id: str) -> None: ...
+
 
 class CasePublisher(Protocol):
     def publish(self, case: InvestigationCase) -> None: ...
@@ -31,6 +33,15 @@ class FileIdempotencyStore:
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(event_id + "\n")
         return True
+
+    def release(self, event_id: str) -> None:
+        """Release a failed claim so the event can be retried."""
+        if event_id not in self._seen:
+            return
+        self._seen.remove(event_id)
+        self.path.write_text(
+            "".join(f"{seen_id}\n" for seen_id in sorted(self._seen)), encoding="utf-8"
+        )
 
 
 class JsonlCasePublisher:
