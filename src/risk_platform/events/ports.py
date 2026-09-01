@@ -1,7 +1,9 @@
 from pathlib import Path
+from threading import Lock
 from typing import Protocol
 
 from risk_platform.domain import InvestigationCase, Prediction
+from risk_platform.files import atomic_write_text
 
 
 class IdempotencyStore(Protocol):
@@ -21,27 +23,31 @@ class PredictionStore(Protocol):
 class FileIdempotencyStore:
     def __init__(self, path: Path):
         self.path = path
+        self._lock = Lock()
         self._seen: set[str] = set()
         if path.exists():
             self._seen.update(path.read_text(encoding="utf-8").splitlines())
 
     def claim(self, event_id: str) -> bool:
-        if event_id in self._seen:
-            return False
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._seen.add(event_id)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(event_id + "\n")
-        return True
+        with self._lock:
+            if event_id in self._seen:
+                return False
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(event_id + "\n")
+            self._seen.add(event_id)
+            return True
 
     def release(self, event_id: str) -> None:
         """Release a failed claim so the event can be retried."""
-        if event_id not in self._seen:
-            return
-        self._seen.remove(event_id)
-        self.path.write_text(
-            "".join(f"{seen_id}\n" for seen_id in sorted(self._seen)), encoding="utf-8"
-        )
+        with self._lock:
+            if event_id not in self._seen:
+                return
+            remaining = self._seen - {event_id}
+            atomic_write_text(
+                self.path, "".join(f"{seen_id}\n" for seen_id in sorted(remaining))
+            )
+            self._seen = remaining
 
 
 class JsonlCasePublisher:

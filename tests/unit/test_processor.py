@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -70,3 +71,13 @@ def test_processor_releases_claim_after_failure(tmp_path: Path) -> None:
         processor.process(event)
 
     assert ids.claim(str(event.event_id))
+
+
+def test_file_idempotency_claim_is_thread_safe(tmp_path: Path) -> None:
+    ids = FileIdempotencyStore(tmp_path / "ids")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        claims = list(executor.map(ids.claim, ["same-event"] * 100))
+
+    assert claims.count(True) == 1
+    assert (tmp_path / "ids").read_text(encoding="utf-8").splitlines() == ["same-event"]
