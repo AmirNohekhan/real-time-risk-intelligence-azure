@@ -21,7 +21,7 @@ class AzureCasePublisher:
             sender.send_messages(
                 ServiceBusMessage(
                     case.model_dump_json(),
-                    message_id=str(case.case_id),
+                    message_id=str(case.event_id),
                     correlation_id=str(case.correlation_id),
                 )
             )

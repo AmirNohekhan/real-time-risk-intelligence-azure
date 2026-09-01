@@ -1,6 +1,13 @@
+from uuid import NAMESPACE_URL, UUID, uuid5
+
 from risk_platform.domain import Action, Event, InvestigationCase, Prediction
 from risk_platform.events.ports import CasePublisher, IdempotencyStore, PredictionStore
 from risk_platform.inference.service import RiskScorer
+
+
+def investigation_case_id(event_id: UUID) -> UUID:
+    """Return a stable case identity so retries address the same investigation."""
+    return uuid5(NAMESPACE_URL, f"risk-platform:investigation:{event_id}")
 
 
 class EventProcessor:
@@ -28,6 +35,7 @@ class EventProcessor:
             if prediction.recommended_action in {Action.REVIEW, Action.BLOCK}:
                 self.cases.publish(
                     InvestigationCase(
+                        case_id=investigation_case_id(event.event_id),
                         event_id=event.event_id,
                         correlation_id=event.correlation_id,
                         priority="critical"

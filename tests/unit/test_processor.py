@@ -12,7 +12,7 @@ from risk_platform.events.ports import (
     JsonlCasePublisher,
     JsonlPredictionStore,
 )
-from risk_platform.events.processor import EventProcessor
+from risk_platform.events.processor import EventProcessor, investigation_case_id
 from risk_platform.inference.service import RiskScorer
 from risk_platform.training import train
 
@@ -81,3 +81,25 @@ def test_file_idempotency_claim_is_thread_safe(tmp_path: Path) -> None:
 
     assert claims.count(True) == 1
     assert (tmp_path / "ids").read_text(encoding="utf-8").splitlines() == ["same-event"]
+
+
+def test_investigation_case_identity_is_stable_per_event() -> None:
+    first_event = Event(
+        entity_id="first",
+        amount=1,
+        account_age_days=1,
+        historical_event_count_30d=1,
+        historical_avg_amount=1,
+        events_1h=1,
+        events_24h=1,
+        recent_failure_rate=0,
+        historical_risk_count=0,
+    )
+    second_event = first_event.model_copy(update={"event_id": first_event.correlation_id})
+
+    assert investigation_case_id(first_event.event_id) == investigation_case_id(
+        first_event.event_id
+    )
+    assert investigation_case_id(first_event.event_id) != investigation_case_id(
+        second_event.event_id
+    )
