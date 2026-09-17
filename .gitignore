@@ -1,3 +1,4 @@
+# Runtime and tooling caches
 .venv/
 __pycache__/
 *.py[cod]
@@ -8,8 +9,11 @@ __pycache__/
 .coverage
 htmlcov/
 .env
-data/
-artifacts/
+
+# Local runtime output, not source code (anchored so it only matches
+# the project-root data/ directory, not any src/**/data package)
+/data/
+/artifacts/
 *.tfstate*
 .terraform/
 crash.log
