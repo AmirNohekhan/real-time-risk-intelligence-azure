@@ -8,8 +8,8 @@ __pycache__/
 .coverage
 htmlcov/
 .env
-data/
-artifacts/
+/data/
+/artifacts/
 *.tfstate*
 .terraform/
 crash.log
