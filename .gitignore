@@ -13,3 +13,9 @@ artifacts/
 *.tfstate*
 .terraform/
 crash.log
+build/
+dist/
+*.egg-info/
+.DS_Store
+.idea/
+.vscode/
